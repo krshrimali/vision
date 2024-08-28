@@ -2,6 +2,7 @@ import warnings
 from functools import partial
 from typing import Any, List, Optional, Union
 
+from torchvision.prototype.transforms import ImageNetEval
 from torchvision.transforms.functional import InterpolationMode
 
 from ....models.quantization.shufflenetv2 import (
@@ -9,7 +10,6 @@ from ....models.quantization.shufflenetv2 import (
     _replace_relu,
     quantize_model,
 )
-from ...transforms.presets import ImageNetEval
 from .._api import Weights, WeightEntry
 from .._meta import _IMAGENET_CATEGORIES
 from ..shufflenetv2 import ShuffleNetV2_x0_5Weights, ShuffleNetV2_x1_0Weights
@@ -44,12 +44,12 @@ def _shufflenetv2(
         quantize_model(model, backend)
 
     if weights is not None:
-        model.load_state_dict(weights.state_dict(progress=progress))
+        model.load_state_dict(weights.get_state_dict(progress=progress))
 
     return model
 
 
-_common_meta = {
+_COMMON_META = {
     "size": (224, 224),
     "categories": _IMAGENET_CATEGORIES,
     "interpolation": InterpolationMode.BILINEAR,
@@ -64,7 +64,7 @@ class QuantizedShuffleNetV2_x0_5Weights(Weights):
         url="https://download.pytorch.org/models/quantized/shufflenetv2_x0.5_fbgemm-00845098.pth",
         transforms=partial(ImageNetEval, crop_size=224),
         meta={
-            **_common_meta,
+            **_COMMON_META,
             "unquantized": ShuffleNetV2_x0_5Weights.ImageNet1K_Community,
             "acc@1": 57.972,
             "acc@5": 79.780,
@@ -77,7 +77,7 @@ class QuantizedShuffleNetV2_x1_0Weights(Weights):
         url="https://download.pytorch.org/models/quantized/shufflenetv2_x1_fbgemm-db332c57.pth",
         transforms=partial(ImageNetEval, crop_size=224),
         meta={
-            **_common_meta,
+            **_COMMON_META,
             "unquantized": ShuffleNetV2_x1_0Weights.ImageNet1K_Community,
             "acc@1": 68.360,
             "acc@5": 87.582,
@@ -92,7 +92,7 @@ def shufflenet_v2_x0_5(
     **kwargs: Any,
 ) -> QuantizableShuffleNetV2:
     if "pretrained" in kwargs:
-        warnings.warn("The argument pretrained is deprecated, please use weights instead.")
+        warnings.warn("The parameter pretrained is deprecated, please use weights instead.")
         if kwargs.pop("pretrained"):
             weights = (
                 QuantizedShuffleNetV2_x0_5Weights.ImageNet1K_FBGEMM_Community
@@ -117,7 +117,7 @@ def shufflenet_v2_x1_0(
     **kwargs: Any,
 ) -> QuantizableShuffleNetV2:
     if "pretrained" in kwargs:
-        warnings.warn("The argument pretrained is deprecated, please use weights instead.")
+        warnings.warn("The parameter pretrained is deprecated, please use weights instead.")
         if kwargs.pop("pretrained"):
             weights = (
                 QuantizedShuffleNetV2_x1_0Weights.ImageNet1K_FBGEMM_Community

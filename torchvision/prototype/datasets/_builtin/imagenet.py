@@ -4,7 +4,7 @@ import re
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 import torch
-from torchdata.datapipes.iter import IterDataPipe, LineReader, KeyZipper, Mapper, TarArchiveReader, Filter, Shuffler
+from torchdata.datapipes.iter import IterDataPipe, LineReader, IterKeyZipper, Mapper, TarArchiveReader, Filter, Shuffler
 from torchvision.prototype.datasets.utils import (
     Dataset,
     DatasetConfig,
@@ -20,8 +20,21 @@ from torchvision.prototype.datasets.utils._internal import (
     Enumerator,
     getitem,
     read_mat,
-    FrozenMapping,
 )
+from torchvision.prototype.features import Label, DEFAULT
+from torchvision.prototype.utils._internal import FrozenMapping
+
+
+class ImageNetLabel(Label):
+    wnid: Optional[str]
+
+    @classmethod
+    def _parse_meta_data(
+        cls,
+        category: Optional[str] = DEFAULT,  # type: ignore[assignment]
+        wnid: Optional[str] = DEFAULT,  # type: ignore[assignment]
+    ) -> Dict[str, Tuple[Any, Any]]:
+        return dict(category=(category, None), wnid=(wnid, None))
 
 
 class ImageNet(Dataset):
@@ -78,12 +91,12 @@ class ImageNet(Dataset):
 
     _TRAIN_IMAGE_NAME_PATTERN = re.compile(r"(?P<wnid>n\d{8})_\d+[.]JPEG")
 
-    def _collate_train_data(self, data: Tuple[str, io.IOBase]) -> Tuple[Tuple[int, str, str], Tuple[str, io.IOBase]]:
+    def _collate_train_data(self, data: Tuple[str, io.IOBase]) -> Tuple[ImageNetLabel, Tuple[str, io.IOBase]]:
         path = pathlib.Path(data[0])
         wnid = self._TRAIN_IMAGE_NAME_PATTERN.match(path.name).group("wnid")  # type: ignore[union-attr]
         category = self.wnid_to_category[wnid]
-        label = self.categories.index(category)
-        return (label, category, wnid), data
+        label = ImageNetLabel(self.categories.index(category), category=category, wnid=wnid)
+        return label, data
 
     _VAL_TEST_IMAGE_NAME_PATTERN = re.compile(r"ILSVRC2012_(val|test)_(?P<id>\d{8})[.]JPEG")
 
@@ -93,31 +106,27 @@ class ImageNet(Dataset):
 
     def _collate_val_data(
         self, data: Tuple[Tuple[int, int], Tuple[str, io.IOBase]]
-    ) -> Tuple[Tuple[int, str, str], Tuple[str, io.IOBase]]:
+    ) -> Tuple[ImageNetLabel, Tuple[str, io.IOBase]]:
         label_data, image_data = data
         _, label = label_data
         category = self.categories[label]
         wnid = self.category_to_wnid[category]
-        return (label, category, wnid), image_data
+        return ImageNetLabel(label, category=category, wnid=wnid), image_data
 
-    def _collate_test_data(self, data: Tuple[str, io.IOBase]) -> Tuple[Tuple[None, None, None], Tuple[str, io.IOBase]]:
-        return (None, None, None), data
+    def _collate_test_data(self, data: Tuple[str, io.IOBase]) -> Tuple[None, Tuple[str, io.IOBase]]:
+        return None, data
 
     def _collate_and_decode_sample(
         self,
-        data: Tuple[Tuple[Optional[int], Optional[str], Optional[str]], Tuple[str, io.IOBase]],
+        data: Tuple[Optional[ImageNetLabel], Tuple[str, io.IOBase]],
         *,
         decoder: Optional[Callable[[io.IOBase], torch.Tensor]],
     ) -> Dict[str, Any]:
-        ann_data, image_data = data
-        label, category, wnid = ann_data
-        path, buffer = image_data
+        label, (path, buffer) = data
         return dict(
             path=path,
             image=decoder(buffer) if decoder else buffer,
             label=label,
-            category=category,
-            wnid=wnid,
         )
 
     def _make_datapipe(
@@ -138,13 +147,13 @@ class ImageNet(Dataset):
             dp = Mapper(dp, self._collate_train_data)
         elif config.split == "val":
             devkit_dp = TarArchiveReader(devkit_dp)
-            devkit_dp = Filter(devkit_dp, path_comparator("name", "ILSVRC2012_validation_ground_truth.txt"))
+            devkit_dp = Filter(devkit_dp, path_comparator("name", value="ILSVRC2012_validation_ground_truth.txt"))
             devkit_dp = LineReader(devkit_dp, return_path=False)
             devkit_dp = Mapper(devkit_dp, int)
             devkit_dp = Enumerator(devkit_dp, 1)
             devkit_dp = Shuffler(devkit_dp, buffer_size=INFINITE_BUFFER_SIZE)
 
-            dp = KeyZipper(
+            dp = IterKeyZipper(
                 devkit_dp,
                 images_dp,
                 key_fn=getitem(0),
@@ -169,7 +178,7 @@ class ImageNet(Dataset):
         resources = self.resources(self.default_config)
         devkit_dp = resources[1].to_datapipe(root / self.name)
         devkit_dp = TarArchiveReader(devkit_dp)
-        devkit_dp = Filter(devkit_dp, path_comparator("name", "meta.mat"))
+        devkit_dp = Filter(devkit_dp, path_comparator("name", value="meta.mat"))
 
         meta = next(iter(devkit_dp))[1]
         synsets = read_mat(meta, squeeze_me=True)["synsets"]

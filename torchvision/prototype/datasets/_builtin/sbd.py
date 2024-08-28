@@ -12,7 +12,7 @@ from torchdata.datapipes.iter import (
     Shuffler,
     Demultiplexer,
     Filter,
-    KeyZipper,
+    IterKeyZipper,
     LineReader,
 )
 from torchvision.prototype.datasets.utils import (
@@ -144,7 +144,7 @@ class SBD(Dataset):
 
         dp = split_dp
         for level, data_dp in enumerate((images_dp, anns_dp)):
-            dp = KeyZipper(
+            dp = IterKeyZipper(
                 dp,
                 data_dp,
                 key_fn=getitem(*[0] * level, 1),
@@ -156,7 +156,7 @@ class SBD(Dataset):
     def _generate_categories(self, root: pathlib.Path) -> Tuple[str, ...]:
         dp = self.resources(self.default_config)[0].to_datapipe(pathlib.Path(root) / self.name)
         dp = TarArchiveReader(dp)
-        dp = Filter(dp, path_comparator("name", "category_names.m"))
+        dp = Filter(dp, path_comparator("name", value="category_names.m"))
         dp = LineReader(dp)
         dp = Mapper(dp, bytes.decode, input_col=1)
         lines = tuple(zip(*iter(dp)))[1]

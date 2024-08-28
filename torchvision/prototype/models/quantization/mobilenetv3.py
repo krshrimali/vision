@@ -3,6 +3,7 @@ from functools import partial
 from typing import Any, List, Optional, Union
 
 import torch
+from torchvision.prototype.transforms import ImageNetEval
 from torchvision.transforms.functional import InterpolationMode
 
 from ....models.quantization.mobilenetv3 import (
@@ -11,7 +12,6 @@ from ....models.quantization.mobilenetv3 import (
     QuantizableMobileNetV3,
     _replace_relu,
 )
-from ...transforms.presets import ImageNetEval
 from .._api import Weights, WeightEntry
 from .._meta import _IMAGENET_CATEGORIES
 from ..mobilenetv3 import MobileNetV3LargeWeights, _mobilenet_v3_conf
@@ -47,7 +47,7 @@ def _mobilenet_v3_model(
         torch.quantization.prepare_qat(model, inplace=True)
 
     if weights is not None:
-        model.load_state_dict(weights.state_dict(progress=progress))
+        model.load_state_dict(weights.get_state_dict(progress=progress))
 
     if quantize:
         torch.quantization.convert(model, inplace=True)
@@ -81,7 +81,7 @@ def mobilenet_v3_large(
     **kwargs: Any,
 ) -> QuantizableMobileNetV3:
     if "pretrained" in kwargs:
-        warnings.warn("The argument pretrained is deprecated, please use weights instead.")
+        warnings.warn("The parameter pretrained is deprecated, please use weights instead.")
         if kwargs.pop("pretrained"):
             weights = (
                 QuantizedMobileNetV3LargeWeights.ImageNet1K_QNNPACK_RefV1

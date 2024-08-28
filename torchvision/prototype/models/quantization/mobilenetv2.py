@@ -2,6 +2,7 @@ import warnings
 from functools import partial
 from typing import Any, Optional, Union
 
+from torchvision.prototype.transforms import ImageNetEval
 from torchvision.transforms.functional import InterpolationMode
 
 from ....models.quantization.mobilenetv2 import (
@@ -10,7 +11,6 @@ from ....models.quantization.mobilenetv2 import (
     _replace_relu,
     quantize_model,
 )
-from ...transforms.presets import ImageNetEval
 from .._api import Weights, WeightEntry
 from .._meta import _IMAGENET_CATEGORIES
 from ..mobilenetv2 import MobileNetV2Weights
@@ -48,7 +48,7 @@ def mobilenet_v2(
     **kwargs: Any,
 ) -> QuantizableMobileNetV2:
     if "pretrained" in kwargs:
-        warnings.warn("The argument pretrained is deprecated, please use weights instead.")
+        warnings.warn("The parameter pretrained is deprecated, please use weights instead.")
         if kwargs.pop("pretrained"):
             weights = (
                 QuantizedMobileNetV2Weights.ImageNet1K_QNNPACK_RefV1
@@ -75,6 +75,6 @@ def mobilenet_v2(
         quantize_model(model, backend)
 
     if weights is not None:
-        model.load_state_dict(weights.state_dict(progress=progress))
+        model.load_state_dict(weights.get_state_dict(progress=progress))
 
     return model

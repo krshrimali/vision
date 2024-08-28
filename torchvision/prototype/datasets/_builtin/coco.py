@@ -11,7 +11,7 @@ from torchdata.datapipes.iter import (
     Demultiplexer,
     ZipArchiveReader,
     Grouper,
-    KeyZipper,
+    IterKeyZipper,
     JsonParser,
     UnBatcher,
 )
@@ -115,7 +115,7 @@ class Coco(Dataset):
         images_dp, meta_dp = resource_dps
 
         meta_dp = ZipArchiveReader(meta_dp)
-        meta_dp = Filter(meta_dp, path_comparator("name", f"instances_{config.split}{config.year}.json"))
+        meta_dp = Filter(meta_dp, path_comparator("name", value=f"instances_{config.split}{config.year}.json"))
         meta_dp = JsonParser(meta_dp)
         meta_dp = Mapper(meta_dp, getitem(1))
         meta_dp = MappingIterator(meta_dp)
@@ -137,7 +137,7 @@ class Coco(Dataset):
         # drop images without annotations
         anns_dp = Filter(anns_dp, bool)
         anns_dp = Shuffler(anns_dp, buffer_size=INFINITE_BUFFER_SIZE)
-        anns_dp = KeyZipper(
+        anns_dp = IterKeyZipper(
             anns_dp,
             images_meta_dp,
             key_fn=getitem(0, "image_id"),
@@ -147,7 +147,7 @@ class Coco(Dataset):
 
         images_dp = ZipArchiveReader(images_dp)
 
-        dp = KeyZipper(
+        dp = IterKeyZipper(
             anns_dp,
             images_dp,
             key_fn=getitem(1, "file_name"),
